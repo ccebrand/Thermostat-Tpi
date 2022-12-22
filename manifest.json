@@ -1,0 +1,8 @@
+{
+  "domain": "thermostat_tpi",
+  "name": "Thermostat TPI",
+  "requirements": [],
+  "dependencies": [],
+  "version": "1.0.0",
+  "codeowners": ["@ccebrand"]
+}
