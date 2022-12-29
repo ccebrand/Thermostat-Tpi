@@ -36,6 +36,7 @@ from homeassistant.const import (
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
     STATE_ON,
+    STATE_OFF,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
@@ -539,7 +540,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         if not self.hass.states.get(self.heater_entity_id):
             return None
 
-        return self.hass.states.is_state(self.heater_entity_id, STATE_ON)
+        return self.hass.states.is_state(self.heater_entity_id, STATE_OFF)
 
     async def _async_heater_turn_on(self):
         """Turn heater toggleable device on."""
