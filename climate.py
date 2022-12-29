@@ -225,6 +225,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         self._attr_unique_id = unique_id
         self._attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
         self._control_heating_off_call_later = None
+        self._stop_control_loop = None
         if len(presets):
             self._attr_supported_features |= ClimateEntityFeature.PRESET_MODE
             self._attr_preset_modes = [PRESET_NONE] + list(presets.keys())
@@ -473,7 +474,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         try:
             c = self.c_coeff
             t = self.t_coeff
-            target = self._min_temp if self._hvac_mode == HVACMode.COOL or (self._hvac_mode == HVACMode.AUTO and not self._planificateur_in_periode()) else self.target_temperature
+            target = self.target_temperature if self._hvac_mode == HVACMode.HEAT or (self._hvac_mode == HVACMode.AUTO and self._planificateur_in_periode()) else self._min_temp
             inside = self._cur_in_temp
             outside = self._cur_out_temp
             if None in [inside, outside, target]:
@@ -485,7 +486,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         except ValueError as ex:
             _LOGGER.error("Unable to compute power from sensor: %s", ex)
 
-    async def _async_control_heating(self, time=None):
+    async def _async_control_heating(self):
         """Check if we need to turn heating on or off."""
         async with self._temp_lock:
             if not self._active and None not in (
@@ -528,7 +529,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
 
             self.async_on_remove(self._control_heating_off_call_later)
     
-    async def _async_control_heating_off_cb(self, time=None):
+    async def _async_control_heating_off_cb(self):
         """Callback called after heating time to stop heating."""
         _LOGGER.info("Turning heater to eco mode to cool off %s", self.heater_entity_id)
         await self._async_heater_turn_off()
@@ -568,24 +569,24 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         if preset_mode == PRESET_NONE:
             self._attr_preset_mode = PRESET_NONE
             self._target_temp = self._saved_target_temp
-            await self._async_control_heating(force=True)
+            await self._async_control_heating()
         else:
             if self._attr_preset_mode == PRESET_NONE:
                 self._saved_target_temp = self._target_temp
             self._attr_preset_mode = preset_mode
             self._target_temp = self._presets[preset_mode]
-            await self._async_control_heating(force=True)
+            await self._async_control_heating()
 
         self.async_write_ha_state()
 
     def _planificateur_in_periode(self) -> bool :
         periode = False
         day = datetime.now().weekday()
-        if self._planificateur[day] != None :
+        if self._planificateur[day] != "none":
           now = datetime.now()
           current_time = now.strftime("%H:%M")
           plage = self._planificateur[day].split("-")
-          if plage[0] >= current_time and current_time <= plage[1] :
+          if plage[0] <= current_time <= plage[1]:
             periode = True
 
         return periode
