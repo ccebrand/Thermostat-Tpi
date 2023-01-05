@@ -39,6 +39,7 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
+    STATE_HOME,
 )
 from homeassistant.core import DOMAIN as HA_DOMAIN, CoreState, HomeAssistant, callback
 from homeassistant.exceptions import ConditionError
@@ -76,6 +77,7 @@ CONF_EVAL_TIME = "eval_time_s"
 CONF_INITIAL_HVAC_MODE = "initial_hvac_mode"
 CONF_PRECISION = "precision"
 CONF_PLANIFICATEUR = "planificateur"
+CONF_PRESENT = "present"
 
 """
 CONF_MIN_TEMP = "min_temp"
@@ -89,7 +91,6 @@ CONF_PRECISION = "precision"
 CONF_TEMP_STEP = "target_temp_step"
 """
 
-
 CONF_PRESETS = {
     p: f"{p}_temp"
     for p in (
@@ -100,7 +101,6 @@ CONF_PRESETS = {
         PRESET_ACTIVITY,
     )
 }
-
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -113,7 +113,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
         vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
         vol.Optional(CONF_MIN_TEMP): vol.Coerce(float),
-        vol.Optional(CONF_PLANIFICATEUR):vol.Coerce(list),
+        vol.Optional(CONF_PLANIFICATEUR): vol.Coerce(list),
+        vol.Optional(CONF_PRESENT): vol.Coerce(list),
         vol.Optional(CONF_INITIAL_HVAC_MODE): vol.In(
             [HVACMode.AUTO, HVACMode.COOL, HVACMode.HEAT, HVACMode.OFF]
         ),
@@ -126,10 +127,10 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 
 async def async_setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
+        hass: HomeAssistant,
+        config: ConfigType,
+        async_add_entities: AddEntitiesCallback,
+        discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Set up the generic thermostat platform."""
 
@@ -145,6 +146,7 @@ async def async_setup_platform(
     target_temp = config.get(CONF_TARGET_TEMP)
     min_temp = config.get(CONF_MIN_TEMP)
     planificateur = config.get(CONF_PLANIFICATEUR)
+    present = config.get(CONF_PRESENT)
     initial_hvac_mode = config.get(CONF_INITIAL_HVAC_MODE)
     presets = {
         key: config[value] for key, value in CONF_PRESETS.items() if value in config
@@ -166,6 +168,7 @@ async def async_setup_platform(
                 target_temp,
                 min_temp,
                 planificateur,
+                present,
                 initial_hvac_mode,
                 presets,
                 precision,
@@ -182,22 +185,23 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
     _attr_should_poll = False
 
     def __init__(
-        self,
-        name,
-        heater_entity_id,
-        in_temp_sensor_entity_id,
-        out_temp_sensor_entity_id,
-        t_coeff,
-        c_coeff,
-        eval_time_s,
-        target_temp,
-        min_temp,
-        planificateur,
-        initial_hvac_mode,
-        presets,
-        precision,
-        unit,
-        unique_id,
+            self,
+            name,
+            heater_entity_id,
+            in_temp_sensor_entity_id,
+            out_temp_sensor_entity_id,
+            t_coeff,
+            c_coeff,
+            eval_time_s,
+            target_temp,
+            min_temp,
+            planificateur,
+            present,
+            initial_hvac_mode,
+            presets,
+            precision,
+            unit,
+            unique_id,
     ):
         """Initialize the thermostat."""
         self._attr_name = name
@@ -221,6 +225,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         self._target_temp = target_temp
         self._min_temp = min_temp
         self._planificateur = planificateur
+        self._present = present
         self._attr_temperature_unit = unit
         self._attr_unique_id = unique_id
         self._attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
@@ -232,7 +237,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         else:
             self._attr_preset_modes = [PRESET_NONE]
         self._presets = presets
-      
+
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added."""
         await super().async_added_to_hass()
@@ -262,8 +267,8 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
             """Init on startup."""
             sensor_state = self.hass.states.get(self.in_temp_sensor_entity_id)
             if sensor_state and sensor_state.state not in (
-                STATE_UNAVAILABLE,
-                STATE_UNKNOWN,
+                    STATE_UNAVAILABLE,
+                    STATE_UNKNOWN,
             ):
                 self._async_update_temp(
                     self.in_temp_sensor_entity_id, sensor_state
@@ -272,8 +277,8 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
 
             out_temp_sensor_state = self.hass.states.get(self.out_temp_sensor_entity_id)
             if out_temp_sensor_state and out_temp_sensor_state.state not in (
-                STATE_UNAVAILABLE,
-                STATE_UNKNOWN,
+                    STATE_UNAVAILABLE,
+                    STATE_UNKNOWN,
             ):
                 self._async_update_temp(
                     self.out_temp_sensor_entity_id, out_temp_sensor_state
@@ -282,8 +287,8 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
 
             switch_state = self.hass.states.get(self.heater_entity_id)
             if switch_state and switch_state.state not in (
-                STATE_UNAVAILABLE,
-                STATE_UNKNOWN,
+                    STATE_UNAVAILABLE,
+                    STATE_UNKNOWN,
             ):
                 self.hass.create_task(self._check_switch_initial_state())
 
@@ -309,8 +314,8 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
                 else:
                     self._target_temp = float(old_state.attributes[ATTR_TEMPERATURE])
             if (
-                self.preset_modes
-                and old_state.attributes.get(ATTR_PRESET_MODE) in self.preset_modes
+                    self.preset_modes
+                    and old_state.attributes.get(ATTR_PRESET_MODE) in self.preset_modes
             ):
                 self._attr_preset_mode = old_state.attributes.get(ATTR_PRESET_MODE)
             if not self._hvac_mode and old_state.state:
@@ -319,7 +324,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         else:
             # No previous state, try and restore defaults
             if self._target_temp is None:
-                 self._target_temp = DEFAULT_TARGET_TEMPERATURE
+                self._target_temp = DEFAULT_TARGET_TEMPERATURE
             _LOGGER.warning(
                 "No previously saved temperature, setting to %s", self._target_temp
             )
@@ -382,7 +387,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
                     self._control_heating_off_call_later()
             await self._async_heater_turn_off()
         else:
-            #await self._async_control_heating()
+            # await self._async_control_heating()
             await self._update_control_loop()
         # Ensure we update the current operation after changing the mode
         self.async_write_ha_state()
@@ -394,7 +399,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         self._target_temp = temperature
         await self._async_control_heating()
         self.async_write_ha_state()
-    
+
     async def _update_control_loop(self):
         """Reset control loop to give its latest state."""
         if self._stop_control_loop:
@@ -421,7 +426,6 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         self._async_update_temp(entity_id, new_state)
         self.async_write_ha_state()
 
-   
     async def _async_sensor_changed(self, event):
         """Handle temperature changes."""
         new_state = event.data.get("new_state")
@@ -474,7 +478,8 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         try:
             c = self.c_coeff
             t = self.t_coeff
-            target = self.target_temperature if self._hvac_mode == HVACMode.HEAT or (self._hvac_mode == HVACMode.AUTO and self._planificateur_in_periode()) else self._min_temp
+            target = self.target_temperature if self._hvac_mode == HVACMode.HEAT or (
+                        self._hvac_mode == HVACMode.AUTO and self._planificateur_in_periode()) else self._min_temp
             inside = self._cur_in_temp
             outside = self._cur_out_temp
             if None in [inside, outside, target]:
@@ -486,13 +491,13 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         except ValueError as ex:
             _LOGGER.error("Unable to compute power from sensor: %s", ex)
 
-    async def _async_control_heating(self):
+    async def _async_control_heating(self, time=None):
         """Check if we need to turn heating on or off."""
         async with self._temp_lock:
             if not self._active and None not in (
-                self._cur_in_temp,
-                self._cur_out_temp,
-                self._target_temp,
+                    self._cur_in_temp,
+                    self._cur_out_temp,
+                    self._target_temp,
             ):
                 self._active = True
                 _LOGGER.info(
@@ -501,18 +506,18 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
                     self._cur_in_temp,
                     self._target_temp,
                 )
-           
+
             """self._window_opened or gestion de la fenetre """
-            if  self._hvac_mode == HVACMode.OFF:
+            if self._hvac_mode == HVACMode.OFF:
                 return
-            
+
             self._async_update_power()
             _LOGGER.info("Current power %s", self._cur_power)
 
             if not self._cur_power:
                 await self._async_heater_turn_off()
                 return
-                
+
             heating_delay = self._cur_power * round(self.eval_time_s / 100, 2)
 
             _LOGGER.info("Turning on heater %s", self.heater_entity_id)
@@ -528,13 +533,14 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
             )
 
             self.async_on_remove(self._control_heating_off_call_later)
-    
+
     async def _async_control_heating_off_cb(self):
         """Callback called after heating time to stop heating."""
         _LOGGER.info("Turning heater to eco mode to cool off %s", self.heater_entity_id)
         await self._async_heater_turn_off()
 
-    """" @todo: a regarder """ 
+    """" @todo: a regarder """
+
     @property
     def _is_device_active(self):
         """If the toggleable device is currently active."""
@@ -579,14 +585,27 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
 
         self.async_write_ha_state()
 
-    def _planificateur_in_periode(self) -> bool :
+    def _planificateur_in_periode(self) -> bool:
         periode = False
         day = datetime.now().weekday()
-        if self._planificateur[day] != "none":
-          now = datetime.now()
-          current_time = now.strftime("%H:%M")
-          plage = self._planificateur[day].split("-")
-          if plage[0] <= current_time <= plage[1]:
-            periode = True
+        if self._planificateur[day] != "none" and self._is_present():
+            now = datetime.now()
+            current_time = now.strftime("%H:%M")
+            plages = self._planificateur[day].split(",")
+            i = 0
+            while i < len(plages) and not periode:
+                plage = plages[i].split("-")
+                if plage[0] <= current_time <= plage[1]:
+                    periode = True
+                i += 1
 
         return periode
+
+    def _is_present(self) -> bool:
+        present = False
+        i = 0
+        while i < len(self._present) and not present:
+            if self.hass.states.is_state(self._present[i], STATE_HOME):
+                present = True
+            i += 1
+        return present or len(self._present) == 0
