@@ -114,7 +114,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
         vol.Optional(CONF_MIN_TEMP): vol.Coerce(float),
         vol.Optional(CONF_PLANIFICATEUR): vol.Coerce(list),
-        vol.Optional(CONF_PRESENT): vol.Coerce(list),
+        vol.Optional(CONF_PRESENT, default=[]): vol.Coerce(list),
         vol.Optional(CONF_INITIAL_HVAC_MODE): vol.In(
             [HVACMode.AUTO, HVACMode.COOL, HVACMode.HEAT, HVACMode.OFF]
         ),
