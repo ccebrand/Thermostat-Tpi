@@ -379,10 +379,10 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         if self._hvac_mode == HVACMode.OFF:
             return HVACAction.OFF
         if not self._is_device_active:
-            return HVACAction.IDLE
+            return HVACAction.IDLE if self._reverse_action else HVACAction.HEATING
         if self.ac_mode:
             return HVACAction.COOLING
-        return HVACAction.HEATING
+        return HVACAction.HEATING if self._reverse_action else HVACAction.IDLE
 
     @property
     def target_temperature(self):
