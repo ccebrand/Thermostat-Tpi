@@ -56,6 +56,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from . import DOMAIN, PLATFORMS
+from ...helpers.config_validation import boolean
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,6 +79,8 @@ CONF_INITIAL_HVAC_MODE = "initial_hvac_mode"
 CONF_PRECISION = "precision"
 CONF_PLANIFICATEUR = "planificateur"
 CONF_PRESENT = "present"
+CONF_TEMPS_MIN = "temps_min"
+CONF_REVERSE_ACTION = "reverse_action"
 
 """
 CONF_MIN_TEMP = "min_temp"
@@ -121,6 +124,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_PRECISION): vol.In(
             [PRECISION_TENTHS, PRECISION_HALVES, PRECISION_WHOLE]
         ),
+        vol.Optional(CONF_TEMPS_MIN, default=-1): vol.Coerce(int),
+        vol.Optional(CONF_REVERSE_ACTION, default=true): vol.Coerce(boolean),
         vol.Optional(CONF_UNIQUE_ID): cv.string,
     }
 ).extend({vol.Optional(v): vol.Coerce(float) for (k, v) in CONF_PRESETS.items()})
@@ -147,6 +152,8 @@ async def async_setup_platform(
     min_temp = config.get(CONF_MIN_TEMP)
     planificateur = config.get(CONF_PLANIFICATEUR)
     present = config.get(CONF_PRESENT)
+    temps_min = config.get(CONF_TEMPS_MIN)
+    reverse_action = config.get(CONF_REVERSE_ACTION)
     initial_hvac_mode = config.get(CONF_INITIAL_HVAC_MODE)
     presets = {
         key: config[value] for key, value in CONF_PRESETS.items() if value in config
@@ -169,6 +176,8 @@ async def async_setup_platform(
                 min_temp,
                 planificateur,
                 present,
+                temps_min,
+                reverse_action,
                 initial_hvac_mode,
                 presets,
                 precision,
@@ -197,6 +206,8 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
             min_temp,
             planificateur,
             present,
+            temps_min,
+            reverse_action,
             initial_hvac_mode,
             presets,
             precision,
@@ -226,6 +237,8 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         self._min_temp = min_temp
         self._planificateur = planificateur
         self._present = present
+        self._temps_min = temps_min
+        self._reverse_action = reverse_action
         self._attr_temperature_unit = unit
         self._attr_unique_id = unique_id
         self._attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
@@ -520,6 +533,9 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
 
             heating_delay = self._cur_power * round(self.eval_time_s / 100, 2)
 
+            if self._temps_min and heating_delay < self._temps_min:
+                heating_delay = self._temps_min
+
             _LOGGER.info("Turning on heater %s", self.heater_entity_id)
             ## forcer le switch
             await self._async_heater_turn_on()
@@ -552,15 +568,17 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
     async def _async_heater_turn_on(self):
         """Turn heater toggleable device on."""
         data = {ATTR_ENTITY_ID: self.heater_entity_id}
+        action = SERVICE_TURN_OFF if self._reverse_action else SERVICE_TURN_ON
         await self.hass.services.async_call(
-            HA_DOMAIN, SERVICE_TURN_OFF, data, context=self._context
+            HA_DOMAIN, action, data, context=self._context
         )
 
     async def _async_heater_turn_off(self):
         """Turn heater toggleable device off."""
         data = {ATTR_ENTITY_ID: self.heater_entity_id}
+        action = SERVICE_TURN_ON if self._reverse_action else SERVICE_TURN_OFF
         await self.hass.services.async_call(
-            HA_DOMAIN, SERVICE_TURN_ON, data, context=self._context
+            HA_DOMAIN, action, data, context=self._context
         )
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
