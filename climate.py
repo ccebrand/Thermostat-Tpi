@@ -74,7 +74,7 @@ CONF_MIN_TEMP = "min_temp"
 CONF_AC_MODE = "ac_mode"
 CONF_C_COEFF = "c_coefficient"
 CONF_T_COEFF = "t_coefficient"
-CONF_EVAL_TIME = "eval_time_s"
+CONF_EVAL_TIME = "eval_time"
 CONF_INITIAL_HVAC_MODE = "initial_hvac_mode"
 CONF_PRECISION = "precision"
 CONF_PLANIFICATEUR = "planificateur"
@@ -147,7 +147,7 @@ async def async_setup_platform(
     out_temp_sensor_entity_id = config.get(CONF_OUT_TEMP_SENSOR)
     t_coeff = config.get(CONF_T_COEFF)
     c_coeff = config.get(CONF_C_COEFF)
-    eval_time_s = config.get(CONF_EVAL_TIME)
+    eval_time = config.get(CONF_EVAL_TIME)
     target_temp = config.get(CONF_TARGET_TEMP)
     min_temp = config.get(CONF_MIN_TEMP)
     planificateur = config.get(CONF_PLANIFICATEUR)
@@ -171,7 +171,7 @@ async def async_setup_platform(
                 out_temp_sensor_entity_id,
                 t_coeff,
                 c_coeff,
-                eval_time_s,
+                eval_time,
                 target_temp,
                 min_temp,
                 planificateur,
@@ -201,7 +201,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
             out_temp_sensor_entity_id,
             t_coeff,
             c_coeff,
-            eval_time_s,
+            eval_time,
             target_temp,
             min_temp,
             planificateur,
@@ -221,7 +221,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
         self.out_temp_sensor_entity_id = out_temp_sensor_entity_id
         self.t_coeff = t_coeff
         self.c_coeff = c_coeff
-        self.eval_time_s = eval_time_s
+        self.eval_time = eval_time
         self.ac_mode = False
         self._hvac_mode = initial_hvac_mode
         self._saved_target_temp = target_temp or next(iter(presets.values()), None)
@@ -267,11 +267,11 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
             )
         )
 
-        if self.eval_time_s:
+        if self.eval_time:
             self._stop_control_loop = async_track_time_interval(
                 self.hass,
                 self._async_control_heating,
-                timedelta(seconds=self.eval_time_s),
+                timedelta(seconds=self.eval_time),
             )
             self.async_on_remove(self._stop_control_loop)
 
@@ -425,7 +425,7 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
 
         # Start a new control loop with updated values
         self._stop_control_loop = async_track_time_interval(
-            self.hass, self._async_control_heating, timedelta(seconds=self.eval_time_s)
+            self.hass, self._async_control_heating, timedelta(seconds=self.eval_time)
         )
         self.async_on_remove(self._stop_control_loop)
 
@@ -531,9 +531,9 @@ class ThermostatTpi(ClimateEntity, RestoreEntity):
                 await self._async_heater_turn_off()
                 return
 
-            heating_delay = self._cur_power * round(self.eval_time_s / 100, 2)
+            heating_delay = self._cur_power * round(self.eval_time / 100, 2)
 
-            if self._temps_min and heating_delay < self._temps_min:
+            if self._temps_min > -1 and heating_delay < self._temps_min:
                 heating_delay = self._temps_min
 
             _LOGGER.info("Turning on heater %s", self.heater_entity_id)
