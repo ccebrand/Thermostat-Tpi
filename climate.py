@@ -125,7 +125,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
             [PRECISION_TENTHS, PRECISION_HALVES, PRECISION_WHOLE]
         ),
         vol.Optional(CONF_TEMPS_MIN, default=-1): vol.Coerce(int),
-        vol.Optional(CONF_REVERSE_ACTION, default=true): vol.Coerce(boolean),
+        vol.Optional(CONF_REVERSE_ACTION, default=True): vol.Coerce(boolean),
         vol.Optional(CONF_UNIQUE_ID): cv.string,
     }
 ).extend({vol.Optional(v): vol.Coerce(float) for (k, v) in CONF_PRESETS.items()})
