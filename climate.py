@@ -7,7 +7,7 @@ import math
 from typing import Any
 
 import voluptuous as vol
-from datetime import time, timedelta, datetime
+from datetime import timedelta, datetime
 
 from homeassistant.components.climate import (
     ATTR_PRESET_MODE,
@@ -42,8 +42,6 @@ from homeassistant.const import (
     STATE_HOME,
 )
 from homeassistant.core import DOMAIN as HA_DOMAIN, CoreState, HomeAssistant, callback
-from homeassistant.exceptions import ConditionError
-from homeassistant.helpers import condition
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
@@ -56,7 +54,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from . import DOMAIN, PLATFORMS
-from ...helpers.config_validation import boolean
+from homeassistant.helpers.config_validation import boolean
 
 _LOGGER = logging.getLogger(__name__)
 
