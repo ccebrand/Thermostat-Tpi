@@ -22,7 +22,6 @@ from homeassistant.components.climate import (
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
-    HVAC_MODE_OFF,
 )
 from homeassistant.const import (
     ATTR_ENTITY_ID,
